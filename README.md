@@ -48,4 +48,11 @@ Number of connections indicates how many sockets are used simultaneously to pass
 
 * Increasing number of connections from 100 to 500 and then to 1000 made latency of both Node.js and Go servers worse, although for Node it was much worse. Node: 7ms -> 67.5ms -> 437ms. Go: 2ms -> 6.2ms -> 13.8ms. What happened and why Node was affected more than Go? Every new connection, say in your database connections pool, becomes a new source of events for your server. At some point just switching between different sources-of-events/connections becomes relatively expensive and Node was affected by that much more than Go just becasue it could not utilise parallelism and handle different connections simultaneously.
 
+Take a look at the performance graph below (the numbers on top indicate how many simultaneuous connections were used during the test):
 ![](imgs/perf_stats_1.png)
+
+As you can see, CPU usage wasn't significantly affected by switching from 10 to 100 connections. Also it spiked on trasition from 100 to 500 and from 500 to 1000, which agrees with explanation that at some point managin connections becomes a CPU intensive tasks. Also you can notice Go uses more CPU than Node.js, that's because it incorporates parallelims and tries to utilise all the available cores in order to maximize efficiency (which you could see from the benchmark results).
+
+Speaking of efficiency, take a look at the latency percentiles graph below, and how much Go server handling almost 40k RPS (green and blue lines) is more responsive than the Node.js one handling only 13k (green and orange lines):
+
+![](imgs/hist_node_go_1.png)
