@@ -86,4 +86,7 @@ Now the benchmark tries to send 10k RPS to the servers that do exactly the same 
 * As you can see, starting from 30ms delay, Node increases median latency by ~10ms.
 * Things get worse when we increase the delay to 40ms (at this point Node's latency grows 6 times but Go still manages to cope up) and finally, both Node and Go start having serious response time problems once the delay jumps to 50ms.
 
-What's going on here? 
+What's going on here? Basically, the amount of time your server will have to hold request in a queue is proportional to the delay the reply depends on. You can see on the graphs below how the memory usage growth as we increase the delay (black numbers on top of the charts). At some point the queues get polluted much faster than than the server can clean them up.
+
+![](imgs/perf_stats_2.png)
+
