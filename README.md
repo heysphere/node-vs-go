@@ -12,6 +12,13 @@ Don't forget that Node can handle a lot of load when used properly while allowin
 
 An official Node.js documentation states: _Here's a good rule of thumb for keeping your Node server speedy: Node is fast when the work associated with each client at any given time is "small"_. Ok, what does "small" mean? You can think of Node.js as a very performant I/O router. If most of what your server does is I/O and there're no expensive blocking operations surrounding the I/O (like heavy computations or sophisticated data procesding bits), it can be a great choice for your project that handles roughly 4-5k RPS with stable and predictable latency.
 
+## TL;DRs
+
+1. Node can happily handle more than 10k RPS with appropriate latency if the load is mostly about I/O
+2. Go can handle at least 4 times more because it utilises parallelism in a very efficient way
+3. Be mindful about how many connections you hold open to databases and other microservices: too few connections may result in bad latency, while too many may make your server burning CPU cycles for just managing them and switching between them. Use connection pooling when possible.
+4. If your service has to talk to other microservices/database, make sure that the latency stays below 50ms. Even though it's a very rough estimate, it helps to avoild potential response time problems that won't necesserily be reflected in how many RPS your server can handle. 
+
 ## Go and when to use it
 
 Either
@@ -56,3 +63,27 @@ As you can see, CPU usage wasn't significantly affected by switching from 10 to 
 Speaking of efficiency, take a look at the latency percentiles graph below, and how much Go server handling almost 40k RPS (green and blue lines) is more responsive than the Node.js one handling only 13k (green and orange lines):
 
 ![](imgs/hist_node_go_1.png)
+
+## Intoducing a delay
+
+Now the benchmark tries to send 10k RPS to the servers that do exactly the same thing -- reply with a current timestamp -- but before they reply we introduce an artificial delay in milliseconds. You can think of the delay as of some asynchronous I/O operation required to be `await`'ed before the server can send a reply back (like talking with a DB or another microservice). The table below demonstrates how different delays (like a DB latency) affect the latency of your server:
+
+| Server | Delay (ms) | RPS | Mean Latency (ms) | Std. Dev |
+| :---: | :---: | :---: | :---: | :---: |
+| Node | 0 | 9.7k | 6.7 | 3.4 |
+| Go | 0 | 9.7k | 2.7 | 5.4 |
+| Node | 10 | 9.6k | 22.4 | 6.4 |
+| Go | 10 |   9.6k | 13.2 | 2 | 
+| Node | 20 | 9.7k | 24.1 | 1.7 |
+| Go | 20 | 9.7k | 22.1 | 1 |
+| Node | 30 | 9.7k | 42.6 | 5.3 |
+| Go | 30 | 9.7k | 32.6 | 1.6 |
+| Node | 40 | 9.6k | 241 | 672 |
+| Go | 40 | 9.7k | 42 | 1.7 |
+| Node | 50 | 8.3k | 2774 | 966 | 
+| Go | 50 | 8.9k | 1550 | 611 | 
+
+* As you can see, starting from 30ms delay, Node increases median latency by ~10ms.
+* Things get worse when we increase the delay to 40ms (at this point Node's latency grows 6 times but Go still manages to cope up) and finally, both Node and Go start having serious response time problems once the delay jumps to 50ms.
+
+What's going on here? 
