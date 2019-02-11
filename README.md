@@ -117,3 +117,12 @@ In this experiment we introduce a relatively inexpensive computation (taking ~1m
 
 So, what's going on here and why Go is so much more efficient? Basically it's all about blocking the event loop with a synchronous operation (like wasting CPU cicles while doing some calculations) during which Node can not keep serving I/O requests. Even if only 1% of all requests ends up doing CPU-intensive work, the latency changes dramatically in case of Node as it is single-threaded by design. Go, on the other hand, doesn't have too much trouble with it as it utilisies parallelism. Even if the request is one of those that has to burn CPU cycles for some time, there're other threads that can keep serving other requests. Only when the percent of computation-intensive requests is too high (like 25%), Go starts having the same problems as Node as the chance of every OS thread (or a CPU core if you will) being busy gets much higher.
 
+Take a look at the performance stats below:
+
+![](imgs/perf_stats_3.png)
+
+Look at these shaky waves on Node's memory usage graph -- memory usage grows because Node has to keep more requests queued if the event loop is blocked by a synchronous computation operation. Go solves the "blocking problem" by utilising all available CPU cores, that's why you see CPU usage on Go graph growing proportionally with percent of computationally-heavy requests.
+
+Finally, a latency histogram:
+
+![](imgs/hist_node_go_3.png)
