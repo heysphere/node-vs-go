@@ -107,13 +107,13 @@ In this experiment we introduce a relatively inexpensive computation (taking ~1m
 | Node | 10 | 3.6k | 12521 | 2405 |
 | Go | 10 | 9.6k | 17.4 | 4.2 |
 | Node | 25 | 3.8k | 15319 | 3427 |
-| Go | 25 | 9.6k | 30.3 | 14.6 |
+| Go | 25 | 8.1k | 3409 | 981 |
 | Node | 50 | 1.6k | 14358 | 5236 |
-| Go | 50 | 5.5k | 8562 | 2235 |  
+| Go | 50 | 4.7k | 10000 | 2797 |  
 
 * What you can immediatelly spot from the table is that even if only 1% of all requests is affected by relatively inexpensive computation operation, Node's latency goes sky high - actually almost 488 times higher. 
 * As we keep increasing the percent of affected requests, Node gets worse and worse, but Go somehow keeps doing a good job.
-* Only once 50% of requests are affected by computation, Go's latency grows to the mark of 8s (that's what Node had with 1%).
+* Only once 25% of requests are affected by computation, Go's latency grows to the mark of 3.5s (still much better than what Node could do with only 1% of computation requests).
 
-So, what's going on here and why Go is so much more efficient? Basically it's all about blocking the event loop with a synchronous operation (like wasting CPU cicles while doing some calculations) during which Node can not keep serving I/O requests. Even if only 1% of all requests ends up doing CPU-intensive work, the latency changes dramatically in case of Node as it is single-threaded by design. Go, on the other hand, doesn't have too much trouble with it as it utilisies parallelism. Even if the request is one of those that has to burn CPU cycles for some time, there're other threads that can keep serving other requests. Only when the percent of computation-intensive requests is too high (like 50%), Go starts having the same problems as Node as the chance of every OS thread (or a CPU core if you will) being busy gets much higher.
+So, what's going on here and why Go is so much more efficient? Basically it's all about blocking the event loop with a synchronous operation (like wasting CPU cicles while doing some calculations) during which Node can not keep serving I/O requests. Even if only 1% of all requests ends up doing CPU-intensive work, the latency changes dramatically in case of Node as it is single-threaded by design. Go, on the other hand, doesn't have too much trouble with it as it utilisies parallelism. Even if the request is one of those that has to burn CPU cycles for some time, there're other threads that can keep serving other requests. Only when the percent of computation-intensive requests is too high (like 25%), Go starts having the same problems as Node as the chance of every OS thread (or a CPU core if you will) being busy gets much higher.
 
