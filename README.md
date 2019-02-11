@@ -26,11 +26,11 @@ Go is definitely much more performant. Unlike Node, it naturally combines parall
 
 ## TL;DRs
 
-1. Node can happily handle something like 5-10k RPS with an appropriate latency if your main load is I/O (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance)
-2. Go can handle at least 4 times more because it utilises parallelism in a very efficient way (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance)
-3. Be mindful about how many connections you hold open to databases and other microservices: too few connections may result in bad latency, while too many may make your server burning CPU cycles for just managing them and switching between them. Use connection pooling when possible. (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance)
+1. Node can happily handle something like 5-10k RPS with an appropriate latency if your main load is I/O (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance))
+2. Go can handle at least 4 times more because it utilises parallelism in a very efficient way (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance))
+3. Be mindful about how many connections you hold open to databases and other microservices: too few connections may result in bad latency, while too many may make your server needlessly burning CPU cycles for just managing sockets and switching between them. Use connection pooling when possible. (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance))
 4. If your service has to talk to other microservices/database, make sure that the latency stays below 50ms. Even though it's a very rough estimate, it helps to avoild potential response time problems that won't necesserily be reflected in how many RPS your server can handle. (see [Introducing a delay](#introducing-a-delay))
-5. Node's latency hits the rock bottom if it has to perform long computations. The situation gets even worse if you mix lightweight I/O-heavy requests with heavyweight CPU-intensive ones in one process. Even if there's something like 1% of heavyweight requests, they tremendously affect the lightweight ones (see [How computation affects the latency and monolyth antipattern](#how-computation-affect-latency-or-why-node-monolyth-is-an-antipattern)
+5. Node's latency hits the rock bottom if it has to perform long computations. The situation gets even worse if you mix lightweight I/O-intensive requests with heavyweight CPU-intensive ones in one process. Even if there's something like 1% of heavyweight requests, they will tremendously affect the lightweight ones (see [How computation affects the latency and monolyth antipattern](#how-computation-affect-latency-or-why-node-monolyth-is-an-antipattern))
 
 ## TOC
 
@@ -46,7 +46,7 @@ _As a side note: on some of the graphs you can notice that the CPU usage is said
 
 Let's see how much we can squeeze from Node.js and Go HTTP servers on my local machine (OSX, 3.1 GHz Intel Core i5, 8 GB 2133 MHz RAM) by calling a route that does nothing more than returning current timestamp. 
 
-Go server can handle at least 3 times more RPS than the Node one with much better and stable latency. I said "at least" becasue the benchmark and the server were launched on the same machine, so they were compeating for resources (like CPU), which didn't allow the Go server to run at full scale. Take a look at the table below:
+Go server can handle at least 3-4 times more RPS than the Node one with much better and stable latency. I said "at least" becasue the benchmark and the server were launched on the same machine, so they were compeating for resources (like CPU), which didn't allow the Go server run at full scale. Take a look at the table below:
 
 | Server | Number Of Connectinos | RPS | Mean Latency (ms) | Std. Dev |
 | :---: | :---: | :---: | :---: | :---: |
@@ -59,16 +59,16 @@ Go server can handle at least 3 times more RPS than the Node one with much bette
 | Node | 1000 | 12.1k | 437 | 103.5 |
 | Go | 1000 | 38k | 13.8 | 7.7 | 
 
-Number of connections indicates how many sockets are used simultaneously to pass the the traffic to the server. A useful way to think of it as number of, say, DB connections in a pool your server keeps open. As you can see from the table, chaning this number can significantly affect server latency but not the RPS (well, not too much). Why is that the case? 
+Number of connections indicates how many sockets are used simultaneously to pass the the traffic to the server. A useful way to think of it as number of, say, DB connections in a pool your server keeps open. As you can see from the table, changing this number can significantly affect server latency but not the RPS (well, not too much). Why is it the case? 
 
-* Increasing the number of connections from 10 to 100 made Node latency 5 times better and Go latency 82 times better. Thing is, every connection/socket has a queue maintained by the OS kernel, where it stores the requests before passing them to the underlying network device. If the device is busy, more and more requests get queued and since the queues size is limited, at some point the queues get full and become a bottleneck. Adding more connections/sockets just gives your server more queues where it can redistributed reuqests more efficiently.
+* Increasing the number of connections from 10 to 100 made Node latency 5 times better and Go latency 82 times better. Thing is, every connection/socket has a queue maintained by the OS kernel, where it stores the responses before passing them to the underlying network device and requests before starting handling them. If the device is busy, more and more requests and responses get queued and since the queues size is limited, at some point they get full and become a bottleneck. Adding more connections/sockets just gives your server more queues where it can redistributed reuqests and responses more efficiently.
 
-* Increasing number of connections from 100 to 500 and then to 1000 made latency of both Node.js and Go servers worse, although for Node it was much worse. Node: 7ms -> 67.5ms -> 437ms. Go: 2ms -> 6.2ms -> 13.8ms. What happened and why Node was affected more than Go? Every new connection, say in your database connections pool, becomes a new source of events for your server. At some point just switching between different sources-of-events/connections becomes relatively expensive and Node was affected by that much more than Go just becasue it could not utilise parallelism and handle different connections simultaneously.
+* Increasing the number of connections from 100 to 500 and then to 1000 made latency of both Node.js and Go servers worse, although for Node it was much worse. Node: 7ms -> 67.5ms -> 437ms. Go: 2ms -> 6.2ms -> 13.8ms. What happened and why Node was affected more than Go? Every new connection, say in your database connections pool, becomes a new source of events for your server. At some point just switching between different sources-of-events/connections becomes a relatively expensive blocing opetaion. Node was affected by that much more than Go just becasue it could not utilise parallelism and handle different connections simultaneously on different cores.
 
-Take a look at the performance graph below (the numbers on top indicate how many simultaneuous connections were used during the test):
+Take a look at the performance graph below (the numbers on the top indicate how many simultaneuous connections were used during the test):
 ![](imgs/perf_stats_1.png)
 
-As you can see, CPU usage wasn't significantly affected by switching from 10 to 100 connections. Also it spiked on trasition from 100 to 500 and from 500 to 1000, which agrees with explanation that at some point managin connections becomes a CPU intensive tasks. Also you can notice Go uses more CPU than Node.js, that's because it incorporates parallelims and tries to utilise all the available cores in order to maximize efficiency (which you could see from the benchmark results).
+As you can see, CPU usage wasn't significantly affected by switching from 10 to 100 connections. Although, it quite spiked on trasition from 100 to 500 and from 500 to 1000, which agrees with the explanation that at some point managin connections becomes a CPU intensive tasks. Also you can notice Go uses mcuh more CPU than Node.js, that's because it incorporates parallelims and tries to utilise all the available cores in order to maximize efficiency (which you could see from the benchmark results).
 
 Speaking of efficiency, take a look at the latency percentiles graph below, and how much Go server handling almost 40k RPS (green and blue lines) is more responsive than the Node.js one handling only 13k (green and orange lines):
 
@@ -76,7 +76,7 @@ Speaking of efficiency, take a look at the latency percentiles graph below, and 
 
 ## Introducing a delay
 
-Now the benchmark tries to send 10k RPS to the servers that do exactly the same thing -- reply with a current timestamp -- but before they reply we introduce an artificial delay in milliseconds. You can think of the delay as of some asynchronous I/O operation required to be `await`'ed before the server can send a reply back (like talking with a DB or another microservice). The table below demonstrates how different delays (like a DB latency) affect the latency of your server:
+Now the benchmark tries to send 10k RPS to the servers that do exactly the same thing -- reply with a current timestamp -- but before they reply an artificial delay was introduced. You can think of the delay as of some asynchronous I/O operation that has to be `await`'ed before the server can send a reply back (like talking with a DB or another microservice). The table below demonstrates how different delays (in ms) affect the latency of your server:
 
 | Server | Delay (ms) | RPS | Mean Latency (ms) | Std. Dev |
 | :---: | :---: | :---: | :---: | :---: |
@@ -94,7 +94,8 @@ Now the benchmark tries to send 10k RPS to the servers that do exactly the same 
 | Go | 50 | 8.9k | 1550 | 611 | 
 
 * As you can see, starting from 30ms delay, Node increases median latency by ~10ms.
-* Things get worse when we increase the delay to 40ms (at this point Node's latency grows 6 times but Go still manages to cope up) and finally, both Node and Go start having serious response time problems once the delay jumps to 50ms.
+* Things get worse when we increase the delay to 40ms (at this point Node's latency grows 6 times but Go still manages to cope up)
+* Finally, both Node and Go start having serious response time problems once the delay jumps to 50ms.
 
 What's going on here? Basically, the amount of time your server will have to hold request in a queue is proportional to the delay the reply depends on. You can see on the graphs below how the memory usage growth as we increase the delay (black numbers on top of the charts). At some point the queues get polluted much faster than than the server can clean them up.
 
@@ -106,7 +107,7 @@ And a latency histogram:
 
 ## How computation affects the latency? (or why Node monolyth is an antipattern)
 
-In this experiment we introduce a relatively inexpensive computation (taking ~1ms) that happens with selected probability before the servers return current timestamp. Let's say that 100ms is an appropriate latency for good user experience. Intuitively you may think that nothing can go wrong if only 1% of the overall latency is dedicated to computation. Apparently, everything can go wrong. Take a look at the table below. The "Requests With Computation" column indicates the percent of queries that will be affected by 1ms computation.
+In this experiment we introduce a relatively inexpensive computation (taking ~1ms) that happens with some pre-selected probability before the servers return current timestamp. Let's say that 100ms is an appropriate latency for good user experience. Intuitively you may think that nothing can go wrong if only 1% of the overall latency is dedicated to computation which take place in only 1% of overall requests. Apparently, everything can go wrong. Take a look at the table below. The "Requests With Computation" column indicates the percent of requests that will be affected by 1ms computation (other requests will just return current timestamp right away).
 
 | Server | Requests With Computation (%) | RPS | Mean Latency (ms) | Std. Dev |
 | :---: | :---: | :---: | :---: | :---: |
@@ -123,15 +124,15 @@ In this experiment we introduce a relatively inexpensive computation (taking ~1m
 
 * What you can immediatelly spot from the table is that even if only 1% of all requests is affected by relatively inexpensive computation operation, Node's latency goes sky high - actually almost 488 times higher. 
 * As we keep increasing the percent of affected requests, Node gets worse and worse, but Go somehow keeps doing a good job.
-* Only once 25% of requests are affected by computation, Go's latency grows to the mark of 3.5s (still much better than what Node could do with only 1% of computation requests).
+* Only once 25% of requests are affected by computation, Go's latency grows to the mark of 3.5s (still much better than what Node could do with only 1% of computation requests -- 8.8s).
 
-So, what's going on here and why Go is so much more efficient? Basically it's all about blocking the event loop with a synchronous operation (like wasting CPU cicles while doing some calculations) during which Node can not keep serving I/O requests. Even if only 1% of all requests ends up doing CPU-intensive work, the latency changes dramatically in case of Node as it is single-threaded by design. Go, on the other hand, doesn't have too much trouble with it as it utilisies parallelism. Even if the request is one of those that has to burn CPU cycles for some time, there're other threads that can keep serving other requests. Only when the percent of computation-intensive requests is too high (like 25%), Go starts having the same problems as Node as the chance of every OS thread (or a CPU core if you will) being busy gets much higher.
+So, what's going on here and why Go is so much more efficient? Basically it's all about blocking the event loop with a synchronous operation (like wasting CPU cicles on some calculations) during which Node can not keep doing the I/O. Even if only 1% of all requests ends up doing CPU-intensive work, the latency changes dramatically in case of Node as the main and only thread of the Node process get blocked by computation. Go, on the other hand, doesn't have too much trouble with it as it utilisies parallelism. Even if the request is one of those that have to burn some CPU cycles for some time, there're other threads that can keep dealing with the I/O. Only when the percent of computation-intensive requests gets too big (like 25%), Go starts having the same problems as Node does, as the chance of every OS thread (or a CPU core if you will) being busy gets proportionally higher.
 
 Take a look at the performance stats below:
 
 ![](imgs/perf_stats_3.png)
 
-Look at these shaky waves on Node's memory usage graph -- memory usage grows because Node has to keep more requests queued if the event loop is blocked by a synchronous computation operation. Go solves the "blocking problem" by utilising all available CPU cores, that's why you see CPU usage on Go graph growing proportionally with percent of computationally-heavy requests.
+Look at these shaky waves on the Node's memory usage graph -- memory usage jusmps in such a way, because Node has to keep more requests queued if the event loop is blocked by a synchronous computation operation. Go solves the "blocking problem" by utilising all available CPU cores, that's why you see CPU usage on the Go's graph growing proportionally with percent of computationally-heavy requests.
 
 Finally, a latency histogram:
 
