@@ -7,28 +7,36 @@ This is a case-by-case Node.js vs Go performance comparison, demonstraiting some
 
 Don't forget that Node can handle a lot of load when used properly while allowing you to move fast, release and prototype features quickly, which is essential when your problem domain is vague and shady.
 
-1. You expect less than 4-5k RPS
-2. Most of what your server does is I/O (I'd say >95%)
-3. Your server is small, simple and unifunctional in a sense that it's not designed to be a swiss knife that deals with many different problem domains at once (monolyth is an antipattern for Node).
+1. You expect less than 4-5k RPS,
+2. Most of what your server does is I/O (I'd say >95%),
+3. Your server is small, simple and unifunctional in a sense that it's not designed to be a swiss knife that deals with many different problem domains at once (monolyth is an antipattern for Node),
+4. You just want to prototype something quickly and move fast.
 
-An official Node.js documentation states: _Here's a good rule of thumb for keeping your Node server speedy: Node is fast when the work associated with each client at any given time is "small"_. Ok, what does "small" mean? You can think of Node.js as a very performant I/O router. If most of what your server does is I/O and there're no expensive blocking operations surrounding the I/O (like heavy computations or sophisticated data procesding bits), it can be a great choice for your project that handles roughly 4-5k RPS with stable and predictable latency. See [Headers](#headers) 
+An official Node.js documentation states: _Here's a good rule of thumb for keeping your Node server speedy: Node is fast when the work associated with each client at any given time is "small"_. Ok, what does "small" mean? You can think of Node.js as a very performant I/O router. If most of what your server does is I/O and there're no expensive blocking operations surrounding the I/O (like heavy computations or sophisticated data procesding bits), it can be a great choice for your project that handles roughly 4-5k RPS with stable and predictable latency. See [How computation affects the latency and monolyth antipattern](#how-computation-affect-latency-or-why-node-monolyth-is-an-antipattern) 
 
 
 ## Go and when to use it
 
 Either
-1. You expect a lot of load on your server: >5k RPS per instance,
-2. Or your server has to include some heavy computations, sophisticated data verification logic, anything that burns CPU cycles and slows Node down,
+1. You expect a lot of load on your server: >5k RPS per instance/node,
+2. Or your server has to include some heavy computations, sophisticated data verification logic, anything that burns CPU cycles that slows Node down,
 3. Or you naturally grow out of Node.js and want to improve performance.
 
-Go is definitely much more performant. Unlike Node, it naturally combines parallelism and concurrency incorporated to the concept of goroutines ([green threads](https://en.wikipedia.org/wiki/Green_threads)). As everything in life, performance comes with a price of dealing with some low-level details that make a bigger room for human error: like using shared resources from multiple goroutines or necessity to release some of system resources manually - like file descriptors. Go is harder to use and debug, so if you need to prototype or relase fast, it's not the best option. Use Node.js isntead, you can always switch to Go once performance is a problem.
+Go is definitely much more performant. Unlike Node, it naturally combines parallelism and concurrency incorporated to the concept of goroutines ([green threads](https://en.wikipedia.org/wiki/Green_threads)). As everything in life, performance comes with a price of dealing with some low-level details that make a bigger room for human error: like using shared resources from multiple goroutines or necessity to release some of system resources manually - like file descriptors, which can lead to a memory leak. Go is harder to use and debug, so if you need to prototype or relase fast, it's not the best option. Use Node.js isntead, you can always switch to Go once the problem domain is demistified and performance becomes a problem.
 
 ## TL;DRs
 
-1. Node can happily handle something like 5-10k RPS with an appropriate latency if your main load is I/O
-2. Go can handle at least 4 times more because it utilises parallelism in a very efficient way
-3. Be mindful about how many connections you hold open to databases and other microservices: too few connections may result in bad latency, while too many may make your server burning CPU cycles for just managing them and switching between them. Use connection pooling when possible.
-4. If your service has to talk to other microservices/database, make sure that the latency stays below 50ms. Even though it's a very rough estimate, it helps to avoild potential response time problems that won't necesserily be reflected in how many RPS your server can handle. 
+1. Node can happily handle something like 5-10k RPS with an appropriate latency if your main load is I/O (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance)
+2. Go can handle at least 4 times more because it utilises parallelism in a very efficient way (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance)
+3. Be mindful about how many connections you hold open to databases and other microservices: too few connections may result in bad latency, while too many may make your server burning CPU cycles for just managing them and switching between them. Use connection pooling when possible. (see [Max RPS](#max-rps-and-how-number-of-simultaneous-connections-affect-performance)
+4. If your service has to talk to other microservices/database, make sure that the latency stays below 50ms. Even though it's a very rough estimate, it helps to avoild potential response time problems that won't necesserily be reflected in how many RPS your server can handle. (see [Introducing a delay](#introducing-a-delay))
+5. Node's latency hits the rock bottom if it has to perform long computations. The situation gets even worse if you mix lightweight I/O-heavy requests with heavyweight CPU-intensive ones in one process. Even if there's something like 1% of heavyweight requests, they tremendously affect the lightweight ones (see [How computation affects the latency and monolyth antipattern](#how-computation-affect-latency-or-why-node-monolyth-is-an-antipattern)
+
+## TOC
+
+* [Max RPS and how number of simultaneous connections affect performance](#max-rps-and-how-number-of-simultaneous-connections-affect-performance)
+* [Introducing a delay](#introducing-a-delay)
+* [How computation affects the latency and monolyth antipattern](#how-computation-affect-latency-or-why-node-monolyth-is-an-antipattern)
 
 # Peformance analysis
 
@@ -96,7 +104,7 @@ And a latency histogram:
 
 ![](imgs/hist_node_go_2.png)
 
-## How computation affect latency? (or why Node monolyth is an antipattern)
+## How computation affects the latency? (or why Node monolyth is an antipattern)
 
 In this experiment we introduce a relatively inexpensive computation (taking ~1ms) that happens with selected probability before the servers return current timestamp. Let's say that 100ms is an appropriate latency for good user experience. Intuitively you may think that nothing can go wrong if only 1% of the overall latency is dedicated to computation. Apparently, everything can go wrong. Take a look at the table below. The "Requests With Computation" column indicates the percent of queries that will be affected by 1ms computation.
 
