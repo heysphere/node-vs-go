@@ -2,22 +2,17 @@
 
 This is a case-by-case Node.js vs Go performance comparison, demonstraiting some pitfalls of the signle-threaded nature of Node.js that, when ignored, starts being a problem under certain load and conditions. In no way it means that Go is "better" than Node.js and we shall start using it everywhere and for everything like other cool kids over there. This analysis is an attempt to come up with some rules of thumb for choosing one language over another for your projects/microservices. 
 
+
 ## Node.js and when to use it 
 
-Don't forget that Node can handle a lot of load when used properly while allowing you to move fast, release quickly and prototype features, which is essential when your problem domain is mostly unknown.
+Don't forget that Node can handle a lot of load when used properly while allowing you to move fast, release and prototype features quickly, which is essential when your problem domain is vague and shady.
 
 1. You expect less than 4-5k RPS
-2. Most of what your server does is I/O
-3. Your server is small, simple and unifunctional in a sense that it's not designed to be a swiss knife that deals with many different problem domains at once (a monolyth).
+2. Most of what your server does is I/O (I'd say >95%)
+3. Your server is small, simple and unifunctional in a sense that it's not designed to be a swiss knife that deals with many different problem domains at once (monolyth is an antipattern for Node).
 
-An official Node.js documentation states: _Here's a good rule of thumb for keeping your Node server speedy: Node is fast when the work associated with each client at any given time is "small"_. Ok, what does "small" mean? You can think of Node.js as a very performant I/O router. If most of what your server does is I/O and there're no expensive blocking operations surrounding the I/O (like heavy computations or sophisticated data procesding bits), it can be a great choice for your project that handles roughly 4-5k RPS with stable and predictable latency.
+An official Node.js documentation states: _Here's a good rule of thumb for keeping your Node server speedy: Node is fast when the work associated with each client at any given time is "small"_. Ok, what does "small" mean? You can think of Node.js as a very performant I/O router. If most of what your server does is I/O and there're no expensive blocking operations surrounding the I/O (like heavy computations or sophisticated data procesding bits), it can be a great choice for your project that handles roughly 4-5k RPS with stable and predictable latency. See [Headers](#headers) 
 
-## TL;DRs
-
-1. Node can happily handle more than 10k RPS with appropriate latency if the load is mostly about I/O
-2. Go can handle at least 4 times more because it utilises parallelism in a very efficient way
-3. Be mindful about how many connections you hold open to databases and other microservices: too few connections may result in bad latency, while too many may make your server burning CPU cycles for just managing them and switching between them. Use connection pooling when possible.
-4. If your service has to talk to other microservices/database, make sure that the latency stays below 50ms. Even though it's a very rough estimate, it helps to avoild potential response time problems that won't necesserily be reflected in how many RPS your server can handle. 
 
 ## Go and when to use it
 
@@ -27,6 +22,13 @@ Either
 3. Or you naturally grow out of Node.js and want to improve performance.
 
 Go is definitely much more performant. Unlike Node, it naturally combines parallelism and concurrency incorporated to the concept of goroutines ([green threads](https://en.wikipedia.org/wiki/Green_threads)). As everything in life, performance comes with a price of dealing with some low-level details that make a bigger room for human error: like using shared resources from multiple goroutines or necessity to release some of system resources manually - like file descriptors. Go is harder to use and debug, so if you need to prototype or relase fast, it's not the best option. Use Node.js isntead, you can always switch to Go once performance is a problem.
+
+## TL;DRs
+
+1. Node can happily handle something like 5-10k RPS with an appropriate latency if your main load is I/O
+2. Go can handle at least 4 times more because it utilises parallelism in a very efficient way
+3. Be mindful about how many connections you hold open to databases and other microservices: too few connections may result in bad latency, while too many may make your server burning CPU cycles for just managing them and switching between them. Use connection pooling when possible.
+4. If your service has to talk to other microservices/database, make sure that the latency stays below 50ms. Even though it's a very rough estimate, it helps to avoild potential response time problems that won't necesserily be reflected in how many RPS your server can handle. 
 
 # Peformance analysis
 
